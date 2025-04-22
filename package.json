@@ -1,0 +1,28 @@
+{
+  "name": "error-log-backend",
+  "version": "1.0.0",
+  "description": "A backend service for error logging",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "type": "module",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fring-12/error-log-backend.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/fring-12/error-log-backend/issues"
+  },
+  "homepage": "https://github.com/fring-12/error-log-backend#readme"
+}
