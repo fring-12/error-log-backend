@@ -1,7 +1,9 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import mongoose from "mongoose";
+import NodeCache from "node-cache";
 import ErrorLog from "./models/ErrorLog.js";
 
 // Load environment variables
@@ -10,14 +12,30 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Initialize cache with 5 minutes TTL
+const cache = new NodeCache({ stdTTL: 300 });
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: "Too many requests from this IP, please try again later",
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(limiter);
 
-// MongoDB Connection
+// MongoDB Connection with optimized settings
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI, {
+      maxPoolSize: 10, // Maximum number of connections in the pool
+      minPoolSize: 5, // Minimum number of connections in the pool
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
     console.log("MongoDB Connected Successfully");
   } catch (error) {
     console.error("MongoDB connection error:", error);
@@ -27,19 +45,28 @@ const connectDB = async () => {
 
 connectDB();
 
-// POST /logs endpoint
+// POST /logs endpoint with batching support
 app.post("/logs", async (req, res) => {
   try {
-    const logEntry = new ErrorLog({
-      ...req.body,
-      serverTimestamp: new Date(),
-    });
+    // Handle both single log and batch of logs
+    const logs = Array.isArray(req.body) ? req.body : [req.body];
 
-    const savedLog = await logEntry.save();
+    const logEntries = logs.map(
+      (log) =>
+        new ErrorLog({
+          ...log,
+          serverTimestamp: new Date(),
+        })
+    );
+
+    const savedLogs = await ErrorLog.insertMany(logEntries);
+
+    // Clear cache when new logs are added
+    cache.del("all_logs");
 
     res.status(201).json({
       status: "success",
-      data: savedLog,
+      data: savedLogs,
     });
   } catch (error) {
     res.status(400).json({
@@ -49,9 +76,21 @@ app.post("/logs", async (req, res) => {
   }
 });
 
-// GET /logs endpoint with filtering, sorting, and pagination
+// GET /logs endpoint with caching
 app.get("/logs", async (req, res) => {
   try {
+    const cacheKey = `logs_${JSON.stringify(req.query)}`;
+    const cachedLogs = cache.get(cacheKey);
+
+    if (cachedLogs) {
+      return res.status(200).json({
+        status: "success",
+        data: cachedLogs.data,
+        pagination: cachedLogs.pagination,
+        cached: true,
+      });
+    }
+
     const {
       level,
       source,
@@ -91,16 +130,17 @@ app.get("/logs", async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Execute query with sorting and pagination
-    const logs = await ErrorLog.find(query)
-      .sort({ [sortBy]: order === "asc" ? 1 : -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const [logs, totalLogs] = await Promise.all([
+      ErrorLog.find(query)
+        .sort({ [sortBy]: order === "asc" ? 1 : -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      ErrorLog.countDocuments(query),
+    ]);
 
     // Get total count for pagination
-    const totalLogs = await ErrorLog.countDocuments(query);
     const totalPages = Math.ceil(totalLogs / parseInt(limit));
-
-    res.status(200).json({
+    const response = {
       status: "success",
       data: logs,
       pagination: {
@@ -109,7 +149,12 @@ app.get("/logs", async (req, res) => {
         totalLogs,
         limit: parseInt(limit),
       },
-    });
+    };
+
+    // Cache the response
+    cache.set(cacheKey, response);
+
+    res.status(200).json(response);
   } catch (error) {
     res.status(500).json({
       status: "error",
@@ -146,6 +191,9 @@ app.patch("/logs/:id", async (req, res) => {
         message: "Log not found",
       });
     }
+
+    // Clear cache when log is updated
+    cache.del("all_logs");
 
     res.status(200).json({
       status: "success",
