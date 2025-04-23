@@ -4,13 +4,45 @@ export const createLogs = async (req, res) => {
   try {
     const logs = Array.isArray(req.body) ? req.body : [req.body];
 
-    const logEntries = logs.map(
-      (log) =>
-        new ErrorLog({
-          ...log,
-          serverTimestamp: new Date(),
-        })
-    );
+    const logEntries = logs.map((log) => {
+      // Validate required fields
+      if (!log.message || !log.level || !log.source || !log.stackTrace) {
+        throw new Error(
+          "Missing required fields: message, level, source, or stackTrace"
+        );
+      }
+
+      // Validate context structure
+      if (!log.context || !log.context.email_id || !log.context.action) {
+        throw new Error("Context must contain email_id and action");
+      }
+
+      // Validate browserInfo structure
+      if (
+        !log.browserInfo ||
+        !log.browserInfo.userAgent ||
+        !log.browserInfo.platform
+      ) {
+        throw new Error("BrowserInfo must contain userAgent and platform");
+      }
+
+      // Create log entry with exact structure
+      return new ErrorLog({
+        message: log.message,
+        level: log.level,
+        source: log.source,
+        stackTrace: log.stackTrace,
+        context: {
+          email_id: log.context.email_id,
+          action: log.context.action,
+        },
+        browserInfo: {
+          userAgent: log.browserInfo.userAgent,
+          platform: log.browserInfo.platform,
+        },
+        serverTimestamp: new Date(),
+      });
+    });
 
     const savedLogs = await ErrorLog.insertMany(logEntries);
 

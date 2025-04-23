@@ -48,12 +48,26 @@ const router = express.Router();
  *             multiple:
  *               summary: Multiple error logs
  *               value:
+ *                 - message: "TypeError: Cannot read property 'id' of undefined"
+ *                   level: "error"
+ *                   source: "frontend-user-profile"
+ *                   stackTrace: "at UserProfile.render (/components/UserProfile.js:25:10)"
+ *                   context:
+ *                     email_id: "123"
+ *                     action: "profile-update"
+ *                     browserInfo:
+ *                       userAgent: "Mozilla/5.0"
+ *                       platform: "MacOS"
  *                 - message: "API Connection Failed"
  *                   level: "error"
  *                   source: "frontend-api"
- *                 - message: "Performance Warning"
- *                   level: "warning"
- *                   source: "frontend-dashboard"
+ *                   stackTrace: "at API.connect (/services/api.js:15:5)"
+ *                   context:
+ *                     endpoint: "/users"
+ *                     method: "GET"
+ *                     browserInfo:
+ *                       userAgent: "Mozilla/5.0"
+ *                       platform: "Windows"
  *     responses:
  *       201:
  *         description: Log(s) created successfully
