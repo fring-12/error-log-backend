@@ -40,7 +40,7 @@ const router = express.Router();
  *                 source: "frontend-user-profile"
  *                 stackTrace: "at UserProfile.render (/components/UserProfile.js:25:10)"
  *                 context:
- *                   userId: "123"
+ *                   email_id: "123"
  *                   action: "profile-update"
  *                 browserInfo:
  *                   userAgent: "Mozilla/5.0"
